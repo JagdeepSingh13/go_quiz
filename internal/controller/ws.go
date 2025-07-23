@@ -3,25 +3,32 @@ package controller
 import (
 	"log"
 
+	"github.com/JagdeepSingh13/go_quiz/internal/service"
 	"github.com/gofiber/contrib/websocket"
 )
 
-func Ws(c *websocket.Conn) {
+type WebSocketController struct {
+	netService *service.NetService
+}
+
+func Ws(netService *service.NetService) WebSocketController {
+	return WebSocketController{
+		netService: netService,
+	}
+}
+
+func (c *WebSocketController) Ws(con *websocket.Conn) {
 	var (
 		mt  int
 		msg []byte
 		err error
 	)
 	for {
-		if mt, msg, err = c.ReadMessage(); err != nil {
+		if mt, msg, err = con.ReadMessage(); err != nil {
 			log.Println("read", err)
 			break
 		}
-		log.Printf("recv: %s", msg)
 
-		if err = c.WriteMessage(mt, msg); err != nil {
-			log.Println("write", err)
-			break
-		}
+		c.netService.OnIncomingMessage(con, mt, msg)
 	}
 }

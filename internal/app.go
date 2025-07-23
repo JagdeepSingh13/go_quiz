@@ -21,6 +21,7 @@ type App struct {
 	httpServer  *fiber.App
 	database    *mongo.Database
 	quizService *service.QuizService
+	netService  *service.NetService
 }
 
 func (a *App) Init() {
@@ -38,7 +39,7 @@ func (a *App) setupHttp() {
 	quizController := controller.Quiz(a.quizService)
 	app.Get("/api/quizzes", quizController.GetQuizzes)
 
-	wsController := controller.Ws()
+	wsController := controller.Ws(a.netService)
 	app.Get("/ws", websocket.New(wsController.Ws))
 
 	log.Fatal(app.Listen(":3000"))
@@ -48,6 +49,7 @@ func (a *App) setupHttp() {
 
 func (a *App) setupServices() {
 	a.quizService = service.Quiz(collection.Quiz(a.database.Collection("quizzes")))
+	a.netService = service.Net(a.quizService)
 }
 
 func (a *App) setupDB() {
