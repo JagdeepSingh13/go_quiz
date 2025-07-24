@@ -4,22 +4,23 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/JagdeepSingh13/go_quiz/internal/entity"
+	"github.com/JagdeepSingh13/go_quiz/internal/game"
 	"github.com/gofiber/contrib/websocket"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 type NetService struct {
 	quizService *QuizService
 
-	host *websocket.Conn
-	tick int
+	games []*game.Game
 }
 
 func Net(quizService *QuizService) *NetService {
 	return &NetService{
 		quizService: quizService,
+		games:       []*game.Game{},
 	}
 }
 
@@ -60,6 +61,15 @@ func (c *NetService) packetToPacketId(packet any) (uint8, error) {
 	return 0, errors.New("invalid packet type")
 }
 
+func (c *NetService) getGameByCode(code string) *game.Game {
+	for _, game := range c.games {
+		if game.Code == code {
+			return game
+		}
+	}
+	return nil
+}
+
 func (c *NetService) OnIncomingMessage(con *websocket.Conn, mt int, msg []byte) {
 	if len(msg) < 2 {
 		return
@@ -78,23 +88,36 @@ func (c *NetService) OnIncomingMessage(con *websocket.Conn, mt int, msg []byte) 
 		return
 	}
 
-	switch packet := packet.(type) {
+	switch data := packet.(type) {
 	case *ConnectPacket:
 		{
-			fmt.Println(packet.Name, "wants to join game ", packet.Code)
+			game := c.getGameByCode(data.Code)
+			if game == nil {
+				return
+			}
+			game.OnPlayerJoin(data.Name, con)
+
 			break
 		}
 	case *HostGamePacket:
 		{
-			fmt.Println("user wants to host quiz ", packet.QuizId)
-			go func() {
-				time.Sleep(time.Second * 5)
-				c.SendPacket(con, QuestionShowPacket{
-					Question: entity.QuizQuestion{
-						Name: "",
-					},
-				})
-			}()
+			quizId, err := primitive.ObjectIDFromHex(data.QuizId)
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+
+			quiz, err := c.quizService.quizCollection.GetQuizById(quizId)
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+			if quiz == nil {
+				return
+			}
+
+			newGame := game.New(*quiz, con)
+			c.games = append(c.games, &newGame)
 			break
 		}
 	}
