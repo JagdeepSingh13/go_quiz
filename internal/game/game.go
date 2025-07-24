@@ -1,6 +1,7 @@
 package game
 
 import (
+	"fmt"
 	"math/rand"
 	"strconv"
 	"time"
@@ -15,10 +16,20 @@ type Player struct {
 	Connection *websocket.Conn
 }
 
+type GameState int
+
+const (
+	LobbyState GameState = iota
+	PlayState
+	RevealState
+	EndState
+)
+
 type Game struct {
 	Id     uuid.UUID
 	Quiz   entity.Quiz
 	Code   string
+	State  GameState
 	Player []Player
 
 	Host *websocket.Conn
@@ -34,6 +45,7 @@ func New(quiz entity.Quiz, host *websocket.Conn) Game {
 		Quiz:   quiz,
 		Code:   generateCode(),
 		Player: []Player{},
+		State:  LobbyState,
 		Host:   host,
 	}
 }
@@ -52,6 +64,7 @@ func (g *Game) Tick() {
 }
 
 func (g *Game) OnPlayerJoin(name string, connection *websocket.Conn) {
+	fmt.Println(name, " joined the game")
 	g.Player = append(g.Player, Player{
 		Name:       name,
 		Connection: connection,
